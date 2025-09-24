@@ -1,0 +1,780 @@
+No Section Scheduling, No Event Scheduling
+
+This is what I want you to filter. Can you please update it entirely
+
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Campus Rooms – Daily Calendar</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121820;
+    --muted: #8aa0b5;
+    --text: #e9eff6;
+    --accent: #66b3ff;
+    --grid: #223041;
+    --card: #0f141b;
+    --barbg: #1a2430;
+    --ok: #6ee7a8;
+    --warn: #facc15;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  .app {
+    display: grid; grid-template-columns: 1fr 360px; gap: 12px;
+    height: 100%; padding: 12px;
+    grid-template-rows: auto 1fr;
+  }
+  header {
+    grid-column: 1 / -1; display: flex; gap: 12px; align-items: center;
+    background: var(--panel); border: 1px solid var(--grid);
+    border-radius: 12px; padding: 10px 12px;
+  }
+  header .title { font-weight: 700; letter-spacing: .3px; }
+  header .hint { color: var(--muted); margin-left: auto; }
+  .card {
+    background: var(--panel); border: 1px solid var(--grid); border-radius: 12px;
+    overflow: hidden; display: flex; flex-direction: column; min-height: 0;
+  }
+  .card h3 {
+    margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--grid);
+    font-size: 14px; letter-spacing:.2px; background: linear-gradient(180deg,#132030,#0f1722);
+  }
+  .controls { padding: 10px 12px; display: grid; gap: 10px; }
+  .row { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+  .tag { padding: 2px 8px; border: 1px solid var(--grid); border-radius: 999px; color: var(--muted); }
+  button, .btn {
+    background: #1a2532; border: 1px solid #233246; color: var(--text);
+    border-radius: 10px; padding: 8px 10px; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  .toggle { display:flex; gap:8px; align-items:center; cursor:pointer; user-select:none; }
+  .toggle input { width:18px; height:18px; }
+  .chips { display:flex; gap:6px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--grid); border-radius: 999px; padding: 4px 8px;
+    cursor:pointer; background:#111825;
+  }
+  .chip input { margin-right:6px; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+
+  /* Calendar area */
+  .calendar-wrap { position: relative; padding: 0;  min-height: 0; height:96% }
+  .cal-header {
+    display:grid; grid-template-columns: 180px 1fr; align-items: stretch;
+    border-bottom:1px solid var(--grid);
+  }
+  .cal-header .left, .cal-header .right {
+    padding: 8px 10px; background: #0e151d;
+  }
+  .cal-header .right { padding-left: 0; padding-right: 0; overflow: hidden; }
+  .cal-hours {
+    position: sticky; top: 0; z-index: 1; height: 36px; background: #0e151d;
+  }
+  /* Inner scroll content wrappers */
+  .grid-inner { position: relative; min-height: 100%; }
+  .cal-hours .tick {
+    position:absolute; top:0; bottom:0; width:1px; background: #233246;
+  }
+  .cal-hours .label {
+    position:absolute; top:6px; font-size:12px; color: var(--muted); transform: translateX(-50%);
+  }
+  .cal-body {
+    display:grid; grid-template-columns: 1fr; min-height: 0; height: calc(100vh - 210px);
+  }
+  /* Labels inside grid */
+  .room-labels { position: sticky; top: 36px; left: 0; width: 180px; z-index: 2; background: #0e151d; border-right:1px solid var(--grid); overflow: hidden; }
+  .room-labels .room { height: 44px; padding: 0 10px; display:flex; align-items:center; border-bottom:1px dashed #1e2a3a; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+  /* Offset event grid and hour ticks to clear the sticky label column */
+  #gridCol { margin-left: 180px; }
+  .cal-grid .cal-hours { margin-left: 180px; }
+  .cal-grid {
+    position: relative; overflow: auto; background: #0b1118;
+  }
+  .cal-row {
+    position: relative; height: 44px; border-bottom:1px dashed #1e2a3a;
+  }
+  .cal-grid .vline {
+    position:absolute; top:0; bottom:0; width:1px; background: #1a2636;
+  }
+  .event {
+    position:absolute; top:6px; height: 32px; border-radius: 8px; overflow: hidden;
+    background: #1d2a3a; border:1px solid #27405a;
+    display:flex; align-items:center; padding: 4px 8px; gap:6px; min-width: 3px;
+  }
+  .event .swatch {
+    width:10px; height:10px; border-radius: 3px; border:1px solid #0005; flex-shrink: 0;
+  }
+  .event .label {
+    font-size: 12px; color: #e5edf6; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  }
+  .now-line {
+    position:absolute; top:0; bottom:0; width:2px; background: var(--accent);
+    box-shadow: 0 0 0 3px #ffffff inset; opacity: 0.9;
+    pointer-events:none;
+  }
+  .now-pill {
+    position: absolute; left: 8px; top: 8px; align-self: flex-start;
+    background: #0d1824; border:1px solid var(--grid); padding:4px 8px; border-radius: 8px; font-size: 12px; color: var(--muted);
+    z-index:2; display:inline-flex; gap:8px; align-items:center;
+  }
+
+  /* Optimal panel */
+  .optimal { padding: 10px; display:flex; flex-direction:column; gap:8px; overflow:auto; }
+  .room-item {
+    background: var(--card); border:1px solid var(--grid); border-radius: 10px; padding: 8px;
+  }
+  .room-top { display:flex; align-items:baseline; gap:8px; }
+  .room-top .name { font-weight:600; }
+  .bar {
+    height: 8px; border-radius: 999px; background: var(--barbg); margin-top: 6px; position: relative; overflow: hidden;
+  }
+  .bar .fill {
+    position:absolute; top:0; bottom:0; left:0; width: 50%; background: linear-gradient(90deg, #4aa3ff, #67e8f9);
+  }
+  .pill {
+    padding: 2px 6px; border-radius: 999px; font-size: 11px; border:1px solid var(--grid); color: var(--muted);
+  }
+
+  /* Timeline (vis-timeline) */
+  #timeline {
+    height: calc(100vh - 180px);
+    background: #0b1118;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    flex: 1 1 auto; min-height: 0;
+  }
+  /* vis-timeline dark theme overrides */
+  #timeline .vis-timeline { border: 1px solid var(--grid); }
+  #timeline .vis-panel { border-color: var(--grid); }
+  #timeline .vis-panel.vis-left { background: #0e151d; border-right:1px solid var(--grid); color: var(--muted); }
+  #timeline .vis-timeline { border-color: var(--grid); }
+  #timeline .vis-panel { border-color: var(--grid) !important; }
+  #timeline .vis-panel.vis-center { border-color: var(--grid) !important; }
+  #timeline .vis-panel.vis-top { border-color: var(--grid) !important; }
+  #timeline .vis-panel.vis-bottom { border-color: var(--grid) !important; }
+  #timeline .vis-time-axis .vis-text { color: var(--muted); }
+  #timeline .vis-time-axis .vis-grid.vis-major { border-color: #233246; }
+  #timeline .vis-time-axis .vis-grid.vis-minor { border-color: #1a2636; }
+  #timeline .vis-item { background: #1d2a3a; border:1px solid #27405a; color: #e5edf6; border-radius: 8px; }
+  #timeline .vis-item .vis-item-content { padding: 4px 8px; }
+  #timeline .vis-item.vis-selected { box-shadow: 0 0 0 2px var(--accent) inset; }
+  #timeline .vis-current-time { background: var(--accent); }
+  #timeline .vis-labelset .vis-label { border-bottom:1px dashed #1e2a3a; height: 44px; display:flex; align-items:center; }
+  #timeline .vis-labelset .vis-label .vis-inner { padding: 0 10px; color: var(--text); }
+  #timeline .vis-foreground .vis-group { border-bottom:1px dashed #1e2a3a; height: 44px; }
+
+  /* Hide scrollbars visually (keep scrolling enabled) */
+  #timeline, #timeline .vis-panel {
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none;    /* Firefox */
+  }
+  #timeline::-webkit-scrollbar, #timeline .vis-panel::-webkit-scrollbar {
+    width: 0; height: 0;      /* WebKit */
+  }
+
+  /* (Paste modal removed) */
+</style>
+<!-- vis-timeline (groups + items on time axis) -->
+<link rel="stylesheet" href="https://unpkg.com/vis-timeline@7.7.2/dist/vis-timeline-graph2d.min.css">
+<script src="https://unpkg.com/vis-data@7.1.4/peer/umd/vis-data.min.js"></script>
+<script src="https://unpkg.com/vis-timeline@7.7.2/dist/vis-timeline-graph2d.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">Campus Rooms – Daily Calendar</div>
+      <div class="row">
+        <span style="flex:1"></span>
+        <label class="chip"><input type="checkbox" id="bNRE"> NRE</label>
+        <label class="chip"><input type="checkbox" id="bETLC"> ETLC</label>
+        <label class="chip"><input type="checkbox" id="bMEC"> MEC</label>
+        <button id="moreFilters" class="btn">More filters…</button>
+      </div>
+    </header>
+
+    
+
+    <!-- Calendar (vis timeline) -->
+    <div class="card calendar-wrap" id="calendarCard">
+      <h3>Daily Grid</h3>
+      <div class="now-pill">
+        <span>Now:</span>
+        <span id="nowLabel" class="mono">—</span>
+      </div>
+      <div id="timeline"></div>
+    </div>
+
+    <!-- Optimal -->
+    <div class="card">
+      <h3>Optimal Rooms (most time remaining)</h3>
+      <div class="optimal" id="optimalList">
+        <div class="muted">Load data to see suggestions.</div>
+      </div>
+    </div>
+  </div>
+
+  
+
+<script>
+(() => {
+  // ---------- State ----------
+  const state = {
+    events: [],
+    buildings: new Set(),
+    buildingFilter: new Set(),     // active buildings
+    defaultFilterOn: true,         // NRE / ETLC / MEC
+    dayStartMin: 7 * 60,           // default if no data (07:00)
+    dayEndMin: 22 * 60 + 59,       // default if no data (22:59)
+    dayDate: null,                 // Date of the data (first event)
+    timeBlockWidth: 100,           // pixels per hour (horizontal zoom)
+  };
+
+  const DEFAULT_BUILDINGS = ["NRE", "ETLC", "MEC"];
+  const LS_KEY = "open_rooms_calendar:data:v1";
+  const LS_KEY_UI = "open_rooms_calendar:ui:v1";
+
+  // ---------- DOM ----------
+  const el = {
+    bNRE: document.getElementById('bNRE'),
+    bETLC: document.getElementById('bETLC'),
+    bMEC: document.getElementById('bMEC'),
+    moreFilters: document.getElementById('moreFilters'),
+    nowLabel: document.getElementById('nowLabel'),
+    timeline: document.getElementById('timeline'),
+    optimalList: document.getElementById('optimalList'),
+    // Time scale controls
+    widenBlocks: document.getElementById('widenBlocks'),
+    narrowBlocks: document.getElementById('narrowBlocks'),
+    blockWidth: document.getElementById('blockWidth'),
+    
+  };
+
+  // ---------- Utils ----------
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const toMinutes = (d) => d.getHours() * 60 + d.getMinutes();
+  const fmtTime = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  const fmtClock = (mins) => {
+    const hours = Math.floor(mins/60);
+    const minutes = mins%60;
+    const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${String(minutes).padStart(2,'0')} ${ampm}`;
+  };
+  const colorHex = (c) => {
+    if (!c) return "#3b82f6";
+    c = String(c).trim();
+    return c.startsWith("#") ? c : ("#" + c);
+  };
+
+  function normalizeRoom(room, building) {
+    if (!room) return "";
+    let r = String(room).trim();
+    // Normalize dashes and spacing
+    r = r.replace(/[\u2013\u2014\u2212]/g, '-'); // en/em/minus to hyphen
+    r = r.replace(/\s*-\s*/g, '-');              // no spaces around hyphen
+    r = r.replace(/\s+/g, ' ');                   // collapse multiple spaces
+    // Building-specific fixes
+    if (String(building).toUpperCase() === 'ETLC') {
+      // Convert E1 018 -> E1-018, E1-18 -> E1-018, E1 18 -> E1-018
+      r = r.replace(/^E([12])[\-\s]?(\d{2,3})$/i, (_m, level, num) => {
+        const padded = String(num).padStart(3, '0');
+        return `E${level}-${padded}`;
+      });
+    }
+    return r;
+  }
+  const parseISOlocal = (s) => {
+    // Treat "YYYY-MM-DDTHH:mm:ss" as local time.
+    // Safari quirk: new Date('YYYY-MM-DDTHH:mm:ss') is local too — OK.
+    const d = new Date(s);
+    if (isNaN(d)) throw new Error("Bad date: " + s);
+    return d;
+  };
+
+  function findArrayIn(objOrArray) {
+    if (Array.isArray(objOrArray)) return objOrArray;
+    if (objOrArray && typeof objOrArray === 'object') {
+      // Common shapes: {events:[…]} or {data:[…]}
+      if (Array.isArray(objOrArray.events)) return objOrArray.events;
+      if (Array.isArray(objOrArray.data)) return objOrArray.data;
+      // Or first array field
+      for (const v of Object.values(objOrArray)) {
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object') return v;
+        if (Array.isArray(v)) return v;
+      }
+    }
+    return [];
+  }
+
+  function normalizeEvents(raw) {
+    const arr = findArrayIn(raw);
+    const out = [];
+    const seenIds = new Set();
+    for (const e of arr) {
+      try {
+        const start = parseISOlocal(e.start);
+        const end = parseISOlocal(e.end);
+        const building = (e.building || "").trim();
+        const roomRaw = e.room || "";
+        const room = normalizeRoom(roomRaw, building);
+        // Ensure unique IDs for vis DataSet
+        let id = e.id;
+        if (!id || seenIds.has(String(id))) {
+          id = crypto.randomUUID();
+        }
+        seenIds.add(String(id));
+        out.push({
+          id,
+          name: e.name || "Untitled",
+          start, end,
+          startMin: toMinutes(start),
+          endMin: toMinutes(end),
+          room,
+          building,
+          campus: e.campus || "",
+          color: colorHex(e.color || "3b82f6"),
+          capacity: e.capacity ?? null,
+          attendance: e.attendance ?? null,
+          typeCode: e.typeCode ?? null
+        });
+      } catch (_err) {
+        // ignore broken rows
+      }
+    }
+    return out.sort((a,b) => a.start - b.start || a.room.localeCompare(b.room));
+  }
+
+  // ---------- API Fetch ----------
+  const CF_ENDPOINT = 'https://cold-dust-029e.squireluke01.workers.dev/api/events';
+  const REGION_ID = '7847aa80-1a04-11ed-8521-9954fbb8a7a5';
+
+  function formatLocalISO(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${day}T${hh}:${mm}:${ss}`;
+  }
+
+  function buildApiUrl(date = new Date(), opts = {}) {
+    const region = opts.region || REGION_ID;
+    const base = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 7, 0, 0);
+    const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 0, 0);
+    const url = new URL(CF_ENDPOINT);
+    url.searchParams.set('s', formatLocalISO(start));
+    url.searchParams.set('e', formatLocalISO(end));
+    url.searchParams.set('region', region);
+    if (opts.debug) url.searchParams.set('debug', '1');
+    return url.toString();
+  }
+
+  async function loadFromApi(date = new Date(), opts = {}) {
+    try {
+      const url = buildApiUrl(date, opts);
+      const res = await fetch(url, {
+        headers: { 'accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const events = normalizeEvents(data);
+      if (!events.length) throw new Error('No events in API response.');
+      // Replace any existing timeline groups/items on next render
+      if (window.__timeline) {
+        try { window.__timeline.setItems(new vis.DataSet([])); } catch {}
+        try { window.__timeline.setGroups(new vis.DataSet([])); } catch {}
+      }
+      state.events = events;
+      deriveDay(events);
+      rebuildBuildings(events);
+      state.defaultFilterOn = false;
+      state.buildingFilter = new Set(state.buildings);
+      save();
+      renderAll();
+    } catch (err) {
+      console.error('API load failed:', err);
+      try { alert('Failed to load from API: ' + err.message); } catch {}
+    }
+  }
+
+  function deriveDay(events) {
+    if (!events.length) {
+      state.dayDate = null;
+      state.dayStartMin = 7*60;
+      state.dayEndMin = 22*60+59;
+      return;
+    }
+    // Assume single day (matches your feed). Always start at 7 AM, use max end with padding.
+    const first = events[0].start;
+    state.dayDate = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+    const maxMin = Math.max(...events.map(e => e.endMin));
+    const pad = 30;
+    state.dayStartMin = 7*60; // Always start at 7 AM
+    state.dayEndMin = Math.min(24*60-1, Math.ceil(maxMin / 30) * 30 + pad);
+    if (state.dayEndMin <= state.dayStartMin) {
+      state.dayStartMin = 7*60; state.dayEndMin = 22*60+59;
+    }
+  }
+
+  function rebuildBuildings(events) {
+    state.buildings = new Set(events.map(e => e.building).filter(Boolean));
+    if (state.defaultFilterOn) {
+      state.buildingFilter = new Set(DEFAULT_BUILDINGS.filter(b => state.buildings.has(b)));
+    } else {
+      // If default off and no prior selection, select all
+      if (!state.buildingFilter.size) state.buildingFilter = new Set(state.buildings);
+    }
+  }
+
+  function filtered(events) {
+    // First filter out events with no scheduling
+    const schedulingFiltered = events.filter(e => 
+      !e.name.includes('No Section Scheduling') && 
+      !e.name.includes('No Event Scheduling')
+    );
+    
+    // Drop unnamed/placeholder events
+    const namedFiltered = schedulingFiltered.filter(e => e.name && e.name !== 'Untitled');
+
+    // Filter out overnight events (before 7 AM or after 11 PM)
+    const timeFiltered = namedFiltered.filter(e => {
+      const startHour = e.start.getHours();
+      return startHour >= 7 && startHour <= 23; // 7 AM to 11 PM
+    });
+    
+    // Then apply building filter
+    if (!state.buildingFilter.size) return timeFiltered;
+    return timeFiltered.filter(e => state.buildingFilter.has(e.building));
+  }
+
+  // ---------- Rendering ----------
+  function renderFilters() {
+    // Header checkboxes states based on buildingFilter
+    if (el.bNRE) el.bNRE.checked = state.buildingFilter.has('NRE');
+    if (el.bETLC) el.bETLC.checked = state.buildingFilter.has('ETLC');
+    if (el.bMEC) el.bMEC.checked = state.buildingFilter.has('MEC');
+  }
+
+  function isDefaultSelection() {
+    if (!DEFAULT_BUILDINGS.every(b => state.buildingFilter.has(b))) return false;
+    // And make sure nothing else is selected beyond defaults
+    for (const b of state.buildings) {
+      if (!DEFAULT_BUILDINGS.includes(b) && state.buildingFilter.has(b)) return false;
+    }
+    return true;
+  }
+
+  function percentFor(mins) {
+    return ((mins - state.dayStartMin) / (state.dayEndMin - state.dayStartMin)) * 100;
+  }
+
+  function renderHoursScale() {}
+
+  function renderCalendar() {
+    // Build vis-timeline groups and items
+    const evs = filtered(state.events);
+    const groupsSet = new Set(evs.map(e => `${e.building} • ${e.room}`).filter(Boolean));
+    const groups = new vis.DataSet([...groupsSet].sort().map((name, idx) => ({ id: name, content: name }))); 
+
+    const items = new vis.DataSet(evs.map(e => ({
+      id: e.id,
+      group: `${e.building} • ${e.room}`,
+      content: e.name,
+      start: e.start,
+      end: e.end,
+      title: `${e.name} — ${e.building} • ${e.room}`
+    })));
+
+    // Compute safe window bounds
+    const base = state.dayDate ? new Date(state.dayDate) : new Date();
+    const dayStart = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 7, 0, 0);
+    const dayEnd = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 22, 59, 0);
+
+    // Create or update timeline
+    if (!window.__timeline) {
+      window.__timeline = new vis.Timeline(el.timeline, items, groups, {
+        stack: false,
+        orientation: { axis: 'top' },
+        showCurrentTime: true,
+        horizontalScroll: false,
+        verticalScroll: true,
+        height: '100%',
+        maxHeight: '100%',
+        zoomFriction: 5,
+        zoomKey: 'ctrlKey',
+        locale: 'en-US',
+        format: {
+          minorLabels: {
+            millisecond: 'h:mm:ss.SSS A',
+            second: 'h:mm:ss A',
+            minute: 'h:mm A',
+            hour: 'h A',
+            weekday: 'ddd M/D',
+            day: 'M/D',
+            month: 'MMM YYYY',
+            year: 'YYYY'
+          },
+          majorLabels: {
+            millisecond: 'h:mm:ss A',
+            second: 'h:mm:ss A',
+            minute: 'h:mm A',
+            hour: 'MMM D',
+            weekday: 'MMM D',
+            day: 'MMM YYYY',
+            month: 'YYYY',
+            year: ''
+          }
+        },
+        min: dayStart,
+        max: dayEnd,
+      });
+      // Enhance wheel: Shift+wheel = horizontal pan via API
+      el.timeline.addEventListener('wheel', (ev) => {
+        if (ev.shiftKey && !ev.ctrlKey) {
+          // Intercept before vis processes wheel to avoid vertical scroll
+          ev.preventDefault();
+          ev.stopPropagation();
+          ev.stopImmediatePropagation?.();
+          const range = window.__timeline.getWindow();
+          const deltaMs = (range.end - range.start) * (ev.deltaY > 0 ? 0.1 : -0.1);
+          window.__timeline.setWindow(new Date(range.start.getTime() + deltaMs), new Date(range.end.getTime() + deltaMs), { animation: false });
+        }
+      }, { passive: false, capture: true });
+    } else {
+      window.__timeline.setGroups(groups);
+      window.__timeline.setItems(items);
+      window.__timeline.setOptions({
+        locale: 'en-US',
+        horizontalScroll: false,
+        verticalScroll: true,
+        height: '100%',
+        maxHeight: '100%',
+        format: {
+          minorLabels: {
+            millisecond: 'h:mm:ss.SSS A',
+            second: 'h:mm:ss A',
+            minute: 'h:mm A',
+            hour: 'h A',
+            weekday: 'ddd M/D',
+            day: 'M/D',
+            month: 'MMM YYYY',
+            year: 'YYYY'
+          },
+          majorLabels: {
+            millisecond: 'h:mm:ss A',
+            second: 'h:mm:ss A',
+            minute: 'h:mm A',
+            hour: 'MMM D',
+            weekday: 'MMM D',
+            day: 'MMM YYYY',
+            month: 'YYYY',
+            year: ''
+          }
+        }
+      });
+    }
+
+    // Fit to day window
+    try { window.__timeline.setWindow(dayStart, dayEnd, { animation: false }); } catch {}
+  }
+
+  function drawNowLine() {}
+
+  function renderOptimal() {
+    const now = new Date();
+    const nowMin = toMinutes(now);
+    const evs = filtered(state.events);
+
+    // Group events by room
+    const byRoom = new Map();
+    for (const e of evs) {
+      const key = `${e.building} • ${e.room}`;
+      if (!byRoom.has(key)) byRoom.set(key, []);
+      byRoom.get(key).push(e);
+    }
+    // Ensure each room's events are sorted by start time
+    for (const list of byRoom.values()) list.sort((a,b) => a.startMin - b.startMin);
+
+    const openRooms = [];
+    for (const [key, list] of byRoom.entries()) {
+      // Skip rooms that are currently occupied
+      const occupied = list.some(e => e.startMin <= nowMin && nowMin < e.endMin);
+      if (occupied) continue;
+
+      // Find previous event and next event relative to now
+      let prev = null; let next = null;
+      for (const e of list) {
+        if (e.endMin <= nowMin) prev = e; else if (e.startMin > nowMin) { next = e; break; }
+      }
+
+      const startOpenMin = prev ? prev.endMin : state.dayStartMin;
+      const endOpenMin = next ? next.startMin : state.dayEndMin;
+      const leftMin = Math.max(0, endOpenMin - Math.max(nowMin, startOpenMin));
+      const totalOpenMin = Math.max(1, endOpenMin - startOpenMin);
+
+      // If no time left (e.g., after day end), skip
+      if (leftMin <= 0) continue;
+
+      openRooms.push({ key, startOpenMin, endOpenMin, leftMin, totalOpenMin, next, prev });
+    }
+
+    // Rank by most free time remaining
+    const ranked = openRooms.sort((a,b) => b.leftMin - a.leftMin);
+
+    el.optimalList.innerHTML = '';
+    if (!ranked.length) {
+      el.optimalList.innerHTML = `<div class="muted">No rooms are currently open within the filtered set.</div>`;
+      return;
+    }
+
+    for (const r of ranked) {
+      const minsLeft = r.leftMin;
+      const overDay = r.endOpenMin >= state.dayEndMin; // free for the rest of the day
+      const pctLeft = overDay ? 100 : clamp((minsLeft / r.totalOpenMin) * 100, 0, 100);
+      const rightLabel = overDay ? 'rest of day' : (minsLeft >= 60 ? `${Math.floor(minsLeft/60)}h ${minsLeft%60}m left` : `${minsLeft} min left`);
+
+      const item = document.createElement('div');
+      item.className = 'room-item';
+      const name = r.key;
+      item.innerHTML = `
+        <div class="room-top">
+          <div class="name">${name}</div>
+          <span class="pill mono">${fmtClock(r.startOpenMin)}–${fmtClock(r.endOpenMin)}</span>
+          <span style="margin-left:auto" class="${overDay ? 'pill' : 'muted'}" ${overDay ? 'style="background: transparent; border-color: var(--ok); color: var(--ok);"' : ''}>${rightLabel}</span>
+        </div>
+        <div class="bar" title="Time remaining in this open block">
+          <div class="fill" style="width:${pctLeft}%;${overDay ? ' background: var(--ok);' : ''}"></div>
+        </div>
+      `;
+      el.optimalList.appendChild(item);
+    }
+  }
+
+  function renderAll() {
+    renderFilters();
+    renderCalendar();
+    renderOptimal();
+    // Timeline handles scrolling/axis; no manual sync needed
+  }
+
+  // ---------- Storage ----------
+  function save() {
+    try {
+      const payload = {
+        events: state.events.map(e => ({
+          id: e.id, name: e.name,
+          start: e.start.toISOString().slice(0,19),  // keep local-looking string
+          end: e.end.toISOString().slice(0,19),
+          room: e.room, building: e.building, campus: e.campus,
+          color: e.color.replace(/^#/, ''), capacity: e.capacity, attendance: e.attendance, typeCode: e.typeCode
+        })),
+        buildingFilter: [...state.buildingFilter],
+        defaultFilterOn: state.defaultFilterOn,
+      };
+      const payloadUI = {
+        timeBlockWidth: state.timeBlockWidth
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(payload));
+      localStorage.setItem(LS_KEY_UI, JSON.stringify(payloadUI));
+    } catch {}
+  }
+  function loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return false;
+      const obj = JSON.parse(raw);
+      const events = normalizeEvents({ events: obj.events || [] });
+      state.events = events;
+      deriveDay(events);
+      rebuildBuildings(events);
+      state.defaultFilterOn = obj.defaultFilterOn ?? true;
+      if (Array.isArray(obj.buildingFilter) && obj.buildingFilter.length) {
+        state.buildingFilter = new Set(obj.buildingFilter);
+      }
+      // Load UI
+      try {
+        const rawUI = localStorage.getItem(LS_KEY_UI);
+        if (rawUI) {
+          const ui = JSON.parse(rawUI);
+          if (ui && typeof ui.timeBlockWidth === 'number') state.timeBlockWidth = ui.timeBlockWidth;
+        }
+      } catch {}
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // (Paste modal and sample data removed)
+
+  // ---------- Events ----------
+  // Header building checkboxes
+  function applyHeaderFilter() {
+    const selected = new Set();
+    if (el.bNRE?.checked) selected.add('NRE');
+    if (el.bETLC?.checked) selected.add('ETLC');
+    if (el.bMEC?.checked) selected.add('MEC');
+    // If none selected, show all; else use selected
+    state.buildingFilter = selected.size ? selected : new Set(state.buildings);
+    state.defaultFilterOn = isDefaultSelection();
+    save(); renderAll();
+  }
+  el.bNRE?.addEventListener('change', applyHeaderFilter);
+  el.bETLC?.addEventListener('change', applyHeaderFilter);
+  el.bMEC?.addEventListener('change', applyHeaderFilter);
+
+  // (Modal buttons removed)
+
+  // (Keyboard shortcuts for modal removed)
+
+  // Time block width controls
+  const MIN_HOUR_PX = 40;
+  const MAX_HOUR_PX = 160;
+  const STEP_HOUR_PX = 10;
+  el.widenBlocks?.addEventListener('click', () => {
+    state.timeBlockWidth = Math.min(MAX_HOUR_PX, state.timeBlockWidth + STEP_HOUR_PX);
+    el.blockWidth.textContent = state.timeBlockWidth + 'px';
+    save();
+    renderAll();
+  });
+  el.narrowBlocks?.addEventListener('click', () => {
+    state.timeBlockWidth = Math.max(MIN_HOUR_PX, state.timeBlockWidth - STEP_HOUR_PX);
+    el.blockWidth.textContent = state.timeBlockWidth + 'px';
+    save();
+    renderAll();
+  });
+
+  // Keep “now” live
+  setInterval(() => { drawNowLine(); renderOptimal(); }, 1000 * 30); // update every 30s
+
+  // ---------- Init ----------
+  loadFromStorage();
+  deriveDay(state.events);
+  renderAll();
+  // Auto-load today's data from the Worker (07:00–23:00 local)
+  loadFromApi(new Date(), { debug: 0 });
+})();
+</script>
+</body>
+
+
+</script>
+
+</body>
+
+</html>
